@@ -1,0 +1,35 @@
+# 2.4.1
+
+Here, you have to connect the point from lecture about bias-variance tradeoff to the discussion in the reading about flexibility, the number of observations ($n$) and the number of predictors ($p$). The idea is that, in general, you can afford to use flexible learners when you have many more observations than predictors ($n$ is much bigger than $p$). The main idea is that you need enough data (and enough *signal in that data*) for the flexible learner to learn something useful.
+
+## a 
+
+Since $n$ is much bigger than $p$, you can use the flexible learner to maximize the benefit from the small number of predictors in this case. 
+
+## b
+
+An inflexible learner is needed here so that you avoid over-fitting. With enough $p$, you can fit the data exactly. You can kind of think of this like, with enough information about the features/traits of the things you're predicting, you can basically customize the model to report the outcome value at each observation. 
+
+## c
+
+In a highly-nonlinear relationship, you need the flexible learner to wrap itself around the complex function. These are the situations where flexible learners really shine. 
+
+## d 
+
+When the variance of the error terms is large, an inflexible learner will help avoid seeing patterns in noise. Of course, it's really hard to know when you're in this situation in practice---you never know the true error variance, since you never know the "true error" of a process. Instead, you only know the errors that *your specific model* (or models) make, and thus the error variance *for a specific model*. Thus, it's really hard to tell when you're in this situation! 
+
+# 2.4.2
+
+This is mainly driven by the reading. *Inference* is about "why" questions, *prediction* is about "what/how much" questions. If we just want to make the best decision, we might focus on prediction. If we want to know why, we might focus on inference. There is no major distinction between the two in practice for the algorithms we discuss in this class other than the analysis goal. Sometimes, though, some algorithms are very fast for prediction, but very hard to do inference with. 
+
+## a
+
+This is a regression inference problem. I can tell it's an inference problem because it's asking "why", not "what," and it's a regression problem because "salary" is a continuous value. Here, n=500, p=3. I can tell n=500 because there are 500 companies, and I am predicting instances of companies. I can tell p=3 because there are three traits chosen for predictors. 
+
+## b
+
+Classification prediction problem. I can tell it's classification because the outcome I'm predicting is discrete. I can tell it's prediction because the problem flat-out says so. I can see that n=20 because it mentions that we have 20 similar products, and we're intending to predict product success. Likewise, the probleme explicitly says there are thirteen predictor variables, so p=13. 
+
+## c
+
+This is a regression prediction problem, and I can tell because %change is a continuous outcome, and the problem text says it's about prediction. Here, the training data is weekly, so we know that n=52. Counting the number of predictors, we see that p=3. 
