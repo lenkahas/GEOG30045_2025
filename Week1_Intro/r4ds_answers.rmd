@@ -1,0 +1,102 @@
+---
+title: "R4DS answers"
+output: html_document
+date: "2025-09-23"
+---
+
+> The solutions for the exersices are being created by the authors and will be in the future published here https://mine-cetinkaya-rundel.github.io/r4ds-solutions/layers.html. 
+
+> Here are the solutions for the exercises given in class.
+
+```{r}
+library(tidyverse)
+```
+
+
+# 10.3.3 Exercises
+1. Explore the distribution of each of the x, y, and z variables in diamonds. What do you learn? Think about a diamond and how you might decide which dimension is the length, width, and depth.*explore, you can see that the numbers in `x` and `y` are sometimes exactly the same, perhaps because the diamond is square or circle, so `x` and `y` could be length and width, while `z` is the depth. It is hard to tell if `x` or `y` is length, but you could try to search online for the source of the data and see if there is any metadata defining those https://ggplot2.tidyverse.org/reference/diamonds.html*
+
+2. Explore the distribution of price. Do you discover anything unusual or surprising? (Hint: Carefully think about the binwidth and make sure you try a wide range of values.) *the variable is very skewed: there is many diamonds priced under £2000, and few of them priced above £10000. Investigating closer the range between £0 and £2000 we can see a gap in the data at the £1500 price tag.Looking into the data closer, there is no diamonds priced £1455-£1546.Is there any reason for this? Could this be an issue with the data generation process?*
+
+3. How many diamonds are 0.99 carat? How many are 1 carat? What do you think is the cause of the difference? *There is 23 0.99-carats and 1,558 1-carats. Looking through some online sources, there is a price jike between 0.99 and 1-carat diamonds as the 1-carat is prefered by people idealist purposes. It’s apparently nice to hear that you have a 1 carat. The appeal is driven by societal stigma and hype, and not really based on technical details. https://yourdiamondteacher.com/diamond-prices/* 
+
+4. Compare and contrast coord_cartesian() vs. xlim() or ylim() when zooming in on a histogram. What happens if you leave binwidth unset? What happens if you try and zoom so only half a bar shows? *explore*
+
+
+# 10.4.1 Exercises
+
+1. What happens to missing values in a histogram? What happens to missing values in a bar chart? Why is there a difference in how missing values are handled in histograms and bar charts? *in bar chart missing values are handled as its own category, so they are included in the graph. More specifically there are empty spaces were the data is missing. Histogram on the other hand provides view of the data with its complete cases only so it does not see or eliminates missing values before it plots. The only exception is if your missing values are recorded as 0, in which case there is a value to them and teh histogram will see them.*
+
+2. What does na.rm = TRUE do in mean() and sum()? *it removes the missing values before computing the value*
+
+3. Recreate the frequency plot of scheduled_dep_time colored by whether the flight was cancelled or not. Also facet by the cancelled variable. Experiment with different values of the scales variable in the faceting function to mitigate the effect of more non-cancelled flights than cancelled flights. *Section 1.5.3 shows you how to do this + you might need to go to the function dexription to understand what the `scales` parameter mean https://ggplot2.tidyverse.org/reference/facet_wrap.html. There is a spike in cancelled flights between 15:00-21:00. Can you explore which origins and destinations these flights are belonging to? Are thei more frequent for some carriers than for others? Where would you start your on the ground invetsigation/mitigation if you would be the airport manager?*
+
+```{}
+# install package if not in the environment
+install.packages("nycflights13")
+```
+
+```{r}
+# load the package
+library(nycflights13)
+```
+
+```{r}
+flights
+
+```
+
+```{r}
+flights |> 
+  mutate(
+    cancelled = is.na(dep_time),
+    sched_hour = sched_dep_time %/% 100,
+    sched_min = sched_dep_time %% 100,
+    sched_dep_time = sched_hour + (sched_min / 60)
+  ) |> 
+  ggplot(aes(x = sched_dep_time)) + 
+  geom_freqpoly(aes(color = cancelled), binwidth = 1/4)
+```
+
+```{r}
+flights |> 
+  mutate(
+    cancelled = is.na(dep_time),
+    sched_hour = sched_dep_time %/% 100,
+    sched_min = sched_dep_time %% 100,
+    sched_dep_time = sched_hour + (sched_min / 60)
+  ) |> 
+ggplot(aes(x = sched_dep_time)) +
+  geom_freqpoly(aes(color = cancelled), binwidth = 1/4) +
+  facet_wrap(~cancelled)
+```
+
+```{r}
+flights |> 
+  mutate(
+    cancelled = is.na(dep_time),
+    sched_hour = sched_dep_time %/% 100,
+    sched_min = sched_dep_time %% 100,
+    sched_dep_time = sched_hour + (sched_min / 60)
+  ) |> 
+ggplot(aes(x = sched_dep_time)) +
+  geom_freqpoly(aes(color = cancelled), binwidth = 1/4) +
+  facet_wrap(~cancelled, scales="fixed")
+```
+
+```{r}
+flights |> 
+  mutate(
+    cancelled = is.na(dep_time),
+    sched_hour = sched_dep_time %/% 100,
+    sched_min = sched_dep_time %% 100,
+    sched_dep_time = sched_hour + (sched_min / 60)
+  ) |> 
+ggplot(aes(x = sched_dep_time)) +
+  geom_freqpoly(aes(color = cancelled), binwidth = 1/4) +
+  facet_wrap(~cancelled, scales="free")
+```
+
+# 11.2.1 Exercises
+
+See https://lionel-hutz.quarto.pub/r4ds-2e-solutions/ch_11_solutions.html for the answers.
