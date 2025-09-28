@@ -1,0 +1,56 @@
+# 3.7.1
+
+the null hypotheses for the regression table are: 
+
+1. The `intercept` represents the typical sales when no advertising spending is made. The null hypothesis fort this coefficient is that the typical sales with no advertising budget is zero. The alternative hypothesis is that the sales will be nonzero. The intercept has a $t$ statistic of 9.42, meaning that our estimate of 2.9, the sales with no advertising spending, is nine times larger than our uncertainty about that spending. Thus, the null hypothesis can be rejected. 
+
+2. The null for `TV` is that spending on television advertising has no effect on sales. Again, the $t$ stat is very large, suggesting that the coefficient is very large relative to its uncertainty, so the null can be rejected. 
+
+3. The null for the `radio` effect is that spending on radio has no effect on sales. Again, the $t$ statistic is very large, suggesting the estimate for the effect of radio advertising spending on sales is very large relative to its uncertainty. So, we can also reject this null. 
+
+4. The null for the `newspaper` effect is that spending on newspaper advertising has no effect on sales. Here, our coefficient is very small relative to its standard error--the estimate is -.001, and the magnitude (without the negative sign) of the standard error is about six times that (at .0059). This makes the $t$ statistic very small, reflecting the fact that the uncertainty about the spending on newspaper advertising does not have a clear link to sales. 
+
+# 3.7.3
+
+## a
+
+To start off, you can identify immediately that *any linear model with interaction effects must have a point where lines for different groups will cross*. 
+
+Conceptually, this is because any two lines that are not parallel *must cross* at some point. Then, remember that the interaction effects are like estimating two (or more) different "lines", and here we have two groups (because `level`) is a category. So, because there are two regression lines, and the lines have different slopes, they must cross. 
+
+Here, though, we have two continuous features: GPA and IQ. So, it's kind of like having two infinite sheets of paper: they have to cross one another at some line. 
+
+So, set up predictions for HS graduates and College Graduates at different IQs and GPAs, and you should find where the two cross. 
+
+This means that it should be possible to find at least one value of IQ and GPA where the predicted earnings for a high schooler is higher than college grad, and a different value of IQ and GPA where the predicted earnings for a high schooler is lower than a college grad. So, we can rule out i. and ii. 
+
+To differentiate iii. and iv., we need to figure out whether high school graduates or college graduates with high GPAs earn more. From the interaction effect, you can tell that the GPA and Level interaction is negative: so college earners with high GPAs actually *earn increasingly less* as their GPA increases. So, iii. is true. To verify, let's code our prediction function: 
+
+```{r}
+q3 <- function(gpa, iq, level){
+  50 + 
+  20*gpa + 
+  .07 * iq + 
+  35*level + 
+  .01 * gpa * iq + 
+  (-10) * gpa * level
+}
+```
+
+Now, what's the earnings of a 4.0 student (very high GPA) with 100 IQ after college? `r q3(4, 100, 1)`. The same for a high schooler is `r q3(4, 100, 0)`. A low-GPA student might have a GPA of 2. For the same IQ and this lower GPA of 2, we'd have a predicted post-college earning of `r q3(2, 100, 1)`, but `r q3(2, 100, 0)` for the high schooler. So, iii. is right: if the GPA is high enough, a high schooler will earn more than a college grad. 
+
+## b
+
+To predict this, set up the estimating equation: 
+
+$$ 
+50 + 20 \times GPA + .07 \times IQ + 35 \times Level + .01 \times GPA \times IQ - 10 \times GPA \times Level
+$$
+
+And plug in the values: 
+
+$$ 50 + 20 * 4+ .07 * 110 + 35 * 1 + .01 * 110 * 4 - 10 * 4 * 1 = 137.1 $$
+
+## c
+
+This is not true. Remember that the standard error is the measure of uncertainty about the estimate. If you have a very small effect, your standard error might be very small, too! Their ratio is what matters to determine whether a term is "significant" in a regression. Here, we may know that the effect of GPA & IQ is very small. But, GPA typicall varies from zero to 4, while IQ is typically 80-120, with some values as low as 40 and others as high as 180. So, we can't judge the importance from the raw estimate alone. 
