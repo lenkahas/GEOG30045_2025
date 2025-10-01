@@ -1,0 +1,94 @@
+---
+format:
+  html:
+    standalone: true
+    embed-resources: true
+---
+# 5.4.3
+
+## a
+
+K-fold crossvalidation works by labelling each observation (a.k.a. sample, row, record) with a "fold". We use $k$ folds in total, where $k$ is some integer between $2$ and $n$, the number of samples in the data. Once we've made the labels, we split the data by folds, so that each fold gets a turn being the "test" fold, and the reamining folds are used as the training data for that turn. The "training" loss is measured as the average loss among the training data in each fold, and the "test" loss (a.k.a. out of sample/validation loss) is calculated as the average over all turns of the test fold. 
+
+Note that a slight variant exists sometimes... you can imagine that using the average test fold loss works well to approximate the typical out of sample accuracy *in one batch*. But, you could also just "save" all the test predictions and calculate the residuals in one go "after" crossvalidation. That is, instead of making predictions for each test fold, calculating their loss, and then taking the average of all of these losses, you could instead take make predictions for each test fold, pool them together to get the "out of fold residual" for each set, and then calculate *one* loss using this out-of-fold residual. 
+
+The difference is subtle, but important. The average of losses will always be less variable than the loss taken in one step. Further, for loss functions like MAE, the average-of-losses will not always equal the loss calculated from pooled out-of-fold residuals. But, in practice, most people use the average-of-losses approach because it's computationally easier—--you can just reduce each test fold to a single loss statistic, rather than having to carry around all $n$ out-of-fold predictions. 
+
+
+# 5.4.8
+
+## a
+
+```{r}
+set.seed(1)
+x <- rnorm(100)
+y <- x - 2 * x^2 + rnorm(100)
+```
+
+$n$ is 100. $p$ is 2. 
+
+## b
+
+```{r}
+library(tidyverse)
+df = tibble(x=x, y=y)
+ggplot(df, aes(x=x,y=y)) + geom_point()
+```
+
+## c
+
+```{r}
+library(boot)
+models = list()
+cvs = c()
+for(pow in 1:4){
+  model = glm(y~poly(x, pow), data=df)
+  cv = cv.glm(df, model)
+  cvs[pow] = cv$delta
+  models[[pow]] = model
+}
+ggplot(mapping=aes(x=1:4, y=cvs)) + 
+  geom_line() + 
+  geom_point() + 
+  scale_y_log10()
+```
+
+```{r}
+set.seed(4)
+models2 = list()
+cvs2 = c()
+for(pow in 1:4){
+  model = glm(y~poly(x, pow), data=df)
+  cv = cv.glm(df, model)
+  cvs2[pow] = cv$delta
+  models2[[pow]] = model
+}
+ggplot(mapping=aes(x=1:4, y=cvs2)) + 
+  geom_line() + 
+  geom_point() + 
+  scale_y_log10()
+```
+
+```{r}
+cbind(cvs, cvs2)
+```
+
+Yes, they're the same when the seed changes. This is because the LOO estimator has no dependence on random variation in the folds---every time, the folds will be the same, since there will always be a training fold that drops each observation. 
+
+## e
+
+Model 2, with the quadratic term. This is expected, since it is the model that matches the functional form we specified in the data generating process. Since the higher-order models (the cubic model with `poly(x, 3)` and quartic model with `poly(x, 4)`) will over-train to the data, being too wiggly to correspond to the actual shape of the data. 
+
+## f
+
+Yes, the statistical significance results agree with my judgement about what the CV results are saying. Basically, the cubic and quartic models don't have support in CV, and those models don't find statistically-significant results for those estimates: 
+
+```{r}
+for(i in 1:4){
+  print(
+    confint(models[[i]])
+  )
+}
+```
+
+Note that the confidence intervals for `(Intercept)`, `poly(x,1)`, and `poly(x,2)` never overlap zero. This means that they're always statistically significant at that significance level. ^[Note that the columns refer to the 2.5% and 97.5% limits, so the $\alpha$ level is .05. If the 95% confidence interval avoids zero, then the effect is statistically significant at a .05 level.].  
