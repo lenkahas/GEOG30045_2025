@@ -1,0 +1,54 @@
+---
+format:
+  html:
+    standalone: true
+    embed-resources: true
+---
+
+
+# 2.4.7
+
+Reprising the table into this answer key: 
+
+|Observation|$X_1$|$X_2$|$X_3$| $Y$  |
+|-----------|-----|-----|-----|------|
+|1          | 0   | 3   |  0  | Red  | 
+|2          | 2   | 0   |  0  | Red  | 
+|3          | 0   | 1   |  3  | Red  |
+|4          | 0   | 1   |  2  |Green | 
+|5          | -1  | 0   |  1  |Green |
+|6          | 1   | 1   |  1  | Red  |
+
+
+## a
+
+For the test point zero, we get the following distances: 
+
+1. $\sqrt{(0 - 0)^2 + (0-3)^2 + (0-0)^2} = \sqrt{9} = 3$
+2. $\sqrt{(0 - 2)^2 + (0-0)^2 + (0-0)^2} = \sqrt{4} = 2$
+3. $\sqrt{(0 - 0)^2 + (0-1)^2 + (0-3)^2} = \sqrt{1+9} = 3.162...$
+4. $\sqrt{(0 - 0)^2 + (0-1)^2 + (0-2)^2} = \sqrt{1+4} = 2.236...$
+5. $\sqrt{(0 - (-1))^2 + (0-0)^2 + (0-1)^2} = \sqrt{1+1} = 1.414...$
+6. $\sqrt{(0 - 1)^2 + (0-1)^2 + (0-1)^2} = \sqrt{3} = 1.732...$
+
+Note that what I've done is to substitute the points into the equation for euclidean distance: 
+
+$$ \sqrt{(x_{q1} - x_{i1})^2 + (x_{q2} - x_{i2})^2 + (x_{q3} - x_{i3})^2}$$
+
+Where I'm using the $q$ subscript ($x_{qj}$) to mean the value of the query point for feature $j$. So, $x_{q2}$ is the value of the second feature for the query point. 
+
+## b
+
+For our prediction when $k=1$, I just pick the point nearest the query point. That's the one with the smallest distance. Here, that's observation $5$. So, my prediction will be "Green".
+
+## c
+
+For our prediction when $k=3$, I pick the color from the three nearest observations. Those would be 5, 6, and 2. So, Green, then Red, then Red. The most common color here is Red, so that's our prediction. 
+
+## d
+
+Small. From chapter 2, the "bayes decision boundary" is the "true" decision boundary, with the lowest classification error rate. If that is very fine, then it's likely that $k$ will be best at a small value. 
+
+# 3.7.2
+
+The KNN classifier is the same as the KNN regressor *except for* the prediction step. In the regression prediction step, we predict using the average of the nearest $k$ observations. In the classifier prediction step, we predict using the most common class among the $k$-nearest set. 

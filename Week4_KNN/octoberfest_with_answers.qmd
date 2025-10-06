@@ -1,0 +1,429 @@
+---
+title: "Understanding K-Nearest Neighbors Algorithms"
+format: 
+  html:
+    standalone: true
+    embed-resources: true
+---
+Today, we'll look at a dataset relating the beer a person drinks to the schnitzel they're predicted to eat at Oktoberfest: 
+```{r echo=F, message=F, warning=F}
+library(tidyverse)
+set.seed(85711)
+n_samples = 24
+oktoberfest <- tibble(
+    beer = c(seq(0,6) + rnorm(20), seq(5,6)+rnorm(4, sd=.5)),
+) |> mutate(
+    schnitzel = (1.8 * beer**3 - 10*beer**2 + 2*beer + rnorm(n_samples, 150, sd=10))
+) |> mutate(
+    beer = round((beer - min(beer) + rgamma(1, 1))*.4, 2),
+    schnitzel = round(schnitzel, 0)
+)
+oktoberfest |> write_csv("./oktoberfest.csv")
+```
+
+```{r, message=F}
+library(tidyverse)
+oktoberfest <- read_csv("./oktoberfest.csv")
+```
+
+```{r echo=F}
+knitr::kable(oktoberfest |> head(5))
+```
+```{r}
+ggplot(
+        oktoberfest, 
+        aes(x=beer, y=schnitzel)
+    ) + 
+    geom_point() + xlim(.5, 4.5)
+```
+
+:::{.callout-tip}
+## Comprehension Check
+
+1. Using the plot above, what is your guess for:
+    a. how much *schnitzel* would you guess would be eaten by someone who drank 1 beer? *just eyeballing it, about 130 grams*
+    b. how much *schnitzel* would you guess would be eaten by someone who drank 2.5 beers? *just eyeballing it, about 110 grams*
+    c. how much *schnitzel* would you guess would be eaten by someone who drank no beer? *to me, visually extending that downward trend it looks like about 50 grams*
+    d. how much *beer* would be drank by someone someone who ate 100 grams of schnitzel? *plausible for 3 beers, or for something like half a beer*
+    e. how much *beer* would be drank by someone who ate 125 grams of schitzel? *This could be either 1 beer, or something like 2.25 or 3.25 beers*
+    c. If you had to explain how you made these guesses, what would you say you did? *I check the value where I’m predicting, and visually “draw” a line through points nearby to see where the relationship might be going. Others may do this differently, though!*
+:::
+
+# A manual KNN
+
+Imagine that we want to predict how much schnitzel would be eaten by a person who drank *exactly* three beers. A KNN learner will construct a prediction from the *average* of the nearest *k* training observations' $y$ values. In this case, nearness is calculated *only using* $x$. This is because we might not *actually observe $y$* in the real world: remember we're focused primarly on *making predictions* in Data Science, and sometimes we might want to make predictions about things that haven't happened yet! 
+
+So, thinking about a prediction for someone who drank exactly three beers, we can think of the following plot:
+
+```{r, echo=F, message=F, warning=F}
+oktoberfest |> mutate(
+    distance = abs(3 - beer)
+) |> mutate(
+    nearness_rank = rank(distance)
+) |> 
+ggplot(
+        aes(x=beer, y=schnitzel, color=distance)
+    ) + 
+        geom_vline(xintercept=3, color='orangered') + 
+        geom_point() + 
+        geom_text(aes(label=nearness_rank, color=NULL), hjust=-.4) + 
+        xlim(.5, 4.5) 
+```
+
+If we had trained a $k=1$ learner, then we would pick only the nearest observation to 3 beers, and predict that the schnitzel eaten by someone who drank 3 beers is *exactly* the amount of schnitzel eaten by someone who drank the nearest to 3 beers. This is observation $1$ in the plot above, which has a value of `r oktoberfest |> mutate(d = abs(3-beer)) |> arrange(d) |> head(1) |> pull(schnitzel) |> round(2)` grams. However, if we picked the nearest $k=4$ observations: 
+```{r echo=F}
+oktoberfest |> mutate(d = abs(3-beer)) |> arrange(d) |> head(4) |> knitr::kable()
+```
+
+Our average would instead be `r oktoberfest |> mutate(d = abs(3-beer)) |> arrange(d) |> pull(schnitzel) |> head(4) |> mean() |> round(2)` grams. In fact, our predicted value for someone who drinks three beers really strongly depends on $k$; as you increase $k$, your prediction generally increases: 
+
+```{r, echo=F}
+oktoberfest |> mutate(
+    distance = abs(3 - beer)
+) |> mutate(
+    nearness_cutoff = rank(distance)
+) |> arrange(nearness_cutoff) |> 
+    mutate(
+        prediction = cumsum(schnitzel) / nearness_cutoff
+    ) |>
+ggplot(
+    aes(x=nearness_cutoff, y=prediction)
+) + 
+    geom_line() + 
+    geom_point()
+```
+
+This is because the points that are *nearest to 3 beers* are have relatively low schnitzel consumption. The points that are very far from 3 have much higher schnitzel consumption. 
+
+:::{.callout-tip}
+## Comprehension Check
+
+1. What is the predicted `schnitzel` value when $k=n$? What does that value represent? *This represents the average schnitzel consumption for people at oktoberfest. This is because the average of the nearest observations is just the average of all the observations!*
+2. Why do we see a big jump when `nearness_cutoff`$=15$? *This is a tie. You can see in the preceeding plot, two observations are labelled as 15.5, meaning that they share the 15 and 16 ranks between them. This means that once you go from $k=14$ to $k=15$, you have to pick one of those two observations to use for your average. And, it also means you “jump” two observations in one step of the nearness cutoff.*
+:::
+
+## Thinking about KNN curves
+
+Below, we can visualize what the predicted schnizel consumption is when you pick different values of $k$. For each of these curves, we just follow a very simple rule. 
+
+1. find a location on the $x$ axis
+2. find the $k$ observations that have the most similar $x$ values
+3. calculate the average $y$ value for these $k$ observations
+4. this average is your prediction for $y$. 
+
+Note that, for now, we're assuming that we're just using the standard average, so our prediction function changes as a "step" each time a new observation enters, or leaves, the $k$-nearest neighbor set. If we scan across the $x$ axis from left to right, you can see each jump as a location where this happens. More advanced applications of KNN instead use a *weighted average* of the nearest $k$ observations, such that observations that are closer to our prediction point have more weight.^[This leads you naturally into other estimators (like LOESS, kernel regression, or geographically-weighted regression), which all build on this idea. But, if you think of the "weighting" function here as being $1$ when an observation is "in" the $KNN$ set and $0$ otherwise, this is just a difference in how we pick a kernel function.]
+
+```{r trainplot, echo=F, warning=F, message=F}
+## This is **ABSOLUTELY NOT** how I want you to train models. 
+## If I see you copy this code for you own assessments without
+## understanding what it is doing, then I will definitely not
+## mark you favorably. Sometimes, especially in R, you have to
+## use *more complex* code in order to demonstrate something visually
+## than is optimal for actually *doing* the analysis!!
+
+predspace = matrix(seq(0,5,.01), ncol=1)
+n_cps = length(predspace)
+xt = oktoberfest |> pull(beer) |> matrix(ncol=1)
+yt = oktoberfest |> pull(schnitzel) |> matrix(ncol=1)
+k1 = FNN::knn.reg(
+    train=xt, 
+    test=predspace,
+    y=yt,
+    k=1
+)
+
+k4 = FNN::knn.reg(
+    train=xt,
+    test=predspace,
+    y=yt,
+    k=4
+)
+
+k12 = FNN::knn.reg(
+    train=xt,
+    test=predspace,
+    y=yt,
+    k=12
+)
+
+k18 = FNN::knn.reg(
+    train=xt,
+    test=predspace,
+    y=yt,
+    k=18
+)
+ggplot() + 
+    geom_point(data=oktoberfest, mapping=aes(x=beer, y=schnitzel)) + 
+    geom_line(aes(x=predspace, y=k1$pred), color='red') + 
+    geom_line(aes(x=predspace, y=k4$pred), color='orange') + 
+    geom_line(aes(x=predspace, y=k12$pred), color='blue') + 
+    geom_line(aes(x=predspace, y=k18$pred), color='purple') + 
+    geom_text(
+        aes(
+            x=5, 
+            y=c(k1$pred[n_cps], k4$pred[n_cps], k12$pred[n_cps], k18$pred[n_cps]), 
+            label=c("k=1","k=4","k=12","k=18"),
+            vjust=-.5)
+    )
+```
+
+We'll use these functions to think through the following questions: 
+
+:::{.callout-tip}
+## Comprehension Check
+
+1. Why do the KNN learners "flatten out" at the very small and very big values of `beer`? *Because there are no new observations out past these values. Once you get to the edge of the point cloud, no new information is provided as a function of getting more extreme. So, the KNN learner just continues to predict the same value.*
+2. Which KNN learner do you think has the lowest error? *$k=1$passes through each point exactly, and so clearly has the lowest possible error of zero.*
+3. Which KNN learner do you think represents the best tradeoff in terms of the bias-variance tradeoff? *I think that $k=4$ has the best traedoff here. It’s fairly smooth visually, but still manages to follow the point cloud effectively.*
+4. Assume that we have observed the following *validation values*:
+
+|beer|schnitzel|
+|----|---------|
+|1   |127      |
+|2   |127      |
+|3   |98       |
+|4   |225      |
+
+Use the plot to approximately judge which model would have the best performance on this validation set. *Again working visually, I look at 1 and follow it up to the value 127. Then, I look at 2 and follow it up to 127 again, and the same for $(3.98$ and $(4,225)$. I personally think visually, it either $k=4$ or $k=12$ would be best. The $k=4$ model seems to be too high for small beer values, while $k=12$ is definitely too high for $3$ and $4$ beers.*
+:::
+
+## Training a KNN learner yourself
+
+To optimize our KNN learner using crossvalidation, we can use the `caret` package. This is a general-purpose interface to nearly any estimator you would want to use. [This is the table of the 238 (at the time of writing) estimators](https://topepo.github.io/caret/available-models.html) supported by `caret`. To fit a KNN, you set `method=knn`. 
+
+```{r message=F, warning=F}
+library(caret)
+
+knn = train(
+    schnitzel ~ beer, 
+    data=oktoberfest, 
+    method='knn', 
+    trControl=trainControl(method='cv')
+)
+```
+
+By default, `caret` will try to find a "good" value of $k$, but it often will not search enough values. To find a good value, you may need to specify the `tuneGrid` option. This option takes a dataframe of parameter values for which you want to check the fit: 
+
+```{r}
+library(caret)
+
+knn = train(
+    schnitzel ~ beer, 
+    data=oktoberfest, 
+    method='knn', 
+    trControl=trainControl(method='cv'), 
+    tuneGrid=data.frame(k=1:18)
+)
+```
+
+:::{.callout-note}
+As a general rule, if the "best" parameter you find sits at the very biggest (or very smallest), you may need to increase (or decrease) the upper (or lower) limit of the values you're searching! For KNN, $k>0$, so you can at least stop the search when $k=1$.
+:::
+
+Objects fit using `caret::train()` always show a results table that contains many of the common scores/losses you might want to consider. Showing the first three rows:
+```{r}
+knn$results |> head(3) |> knitr::kable()
+```
+
+
+This makes it easy to plot the accuracy of the learner as a function of $k$:
+```{r}
+ggplot(knn$results, aes(x=k, y=RMSE)) + 
+    geom_line() + geom_point()
+```
+
+From this plot, you might think that choosing any $k<6$ is fairly defensible. By default, caret picks the model with the best RMSE and stores it under the `finalModel` attribute:
+
+```{r}
+knn$finalModel
+```
+
+The `caret::train()` function picks models with the lowest RMSE by default. This might not always pick the same model as other loss/gain functions. For example, we would pick a different model if we wanted to optimize our R-squared: 
+
+```{r}
+ggplot(knn$results, aes(x=k, y=Rsquared)) + 
+    geom_line() + geom_point()
+```
+
+
+You can switch to other gain functions using the `maximize` argument:
+
+```{r}
+knn_abs = train(
+    schnitzel ~ beer, 
+    data=oktoberfest, 
+    method='knn',
+    metric="Rsquared",
+    maximize = TRUE,
+    trControl=trainControl(method='cv'), 
+    tuneGrid=data.frame(k=1:18)
+)
+knn_abs$finalModel
+```
+
+:::{.callout-note}
+Note that the exact value of $k$ can change depending on the random changes between cross-validation splits. Try proving this to yourself by training a knn model twice using the same options. In large data, this generally averages out, but to ensure you get the same results every time, make sure to give the `set.seed()` a number, like your student number, your birthday, or some other number, to ensure that the randomness is the same every time. Usually, we set the seed once at the start, or once per chunk if you're repeating that chunk over and over again to troubleshoot. 
+:::
+
+You can use this model to make predictions, too: 
+```{r}
+new_data = tibble(beer=1:4)
+preds = predict(knn$finalModel, new_data)
+
+new_data |> mutate(prediction=preds) |> knitr::kable()
+```
+
+:::{.callout-tip}
+## Comprehension Check
+1. Fit the $k=1$, $k=4$, $k=12$, and $k=23$ models from the plot above. 
+    a. Which one has the best validation error? You can use `yardstick::rsme_vec(prediction, known)`, which is the `rmse_vec()` function from the `yardstick` package, to calculate the RMSE of a vector of predictions and a vector of known values.  *see code chunks below*
+    b. Does the model that has the lowest validation error match the one you expected to have the best bias-variance tradeoff? If they differ, why do you think they differ? *so, I thought k=4 would have good performance, and it does. But, k=12 really doesn’t! Note that this is probably because it’s just too smooth. Indeed, when you visually inspect a fitted line, you’re more likely to reason directly in terms of residual lengths (and so in terms of absolute error), while the statistical approaches we compare will sometimes use squared error not absolute error. So, it’s easy to mislead yourself visually, and thus important to play around with the actual loss calculations!*
+2. Fit a KNN model to the `Boston` data from ISL, predicting `medv` using `lstat`.
+    a. What is the optimum $k$ value? *see chunks below*
+    b. What is the predicted `medv` when `lstat` is 5, 10, and 15? *see chunks below*
+    c. How do these predictions differ from a linear model's predictions? *see chunks below, predictions for large lstat are higher in the linear model, likely because the model cannot handle the strong downwards curving relationship between medv and lstat.*
+    d. Which model do you expect to have a better model fit to *new data*? *Given the nonlinearity, KNN*
+
+:::
+
+## 1a
+
+```{r}
+k1 = train(schnitzel ~ beer, data=oktoberfest, method='knn', tuneGrid=data.frame(k=1))
+k4 = train(schnitzel ~ beer, data=oktoberfest, method='knn', tuneGrid=data.frame(k=4))
+k12 = train(schnitzel ~ beer, data=oktoberfest, method='knn', tuneGrid=data.frame(k=12))
+k23 = train(schnitzel ~ beer, data=oktoberfest, method='knn', tuneGrid=data.frame(k=23))
+```
+
+```{r}
+known_results <- data.frame(
+    beer = 1:4,
+    schnitzel = c(127, 127, 98, 225)
+)
+
+data.frame(
+    rmse_train = c(
+    yardstick::rmse_vec(predict(k1), oktoberfest$schnitzel),
+    yardstick::rmse_vec(predict(k4), oktoberfest$schnitzel),
+    yardstick::rmse_vec(predict(k12), oktoberfest$schnitzel),
+    yardstick::rmse_vec(predict(k23), oktoberfest$schnitzel)
+    ),
+    rmse_test = c(
+        yardstick::rmse_vec(predict(k1, newdata=known_results), known_results$schnitzel),
+        yardstick::rmse_vec(predict(k4, newdata=known_results), known_results$schnitzel),
+        yardstick::rmse_vec(predict(k12, newdata=known_results), known_results$schnitzel),
+        yardstick::rmse_vec(predict(k23, newdata=known_results), known_results$schnitzel)
+    ),
+    k=c(1,4,12,23)
+) |> arrange(rmse_test) |> knitr::kable()
+```
+
+```{r}
+## could also do this in a for loop: 
+
+for(k in c(1,4,12,23)){
+    model = train(schnitzel ~ beer, data=oktoberfest, method='knn', tuneGrid=data.frame(k=k))
+    predy_train = predict(model)
+    predy_test = predict(model, newdata=known_results)
+
+    rmse_train = yardstick::rmse_vec(predy_train, oktoberfest$schnitzel)
+    rmse_test =  yardstick::rmse_vec(predy_test, known_results$schnitzel)
+
+    print(paste0("k=",k," has rmse: ", round(rmse_test, 4)))
+}
+```
+
+## 2a
+
+```{r}
+library(ISLR2)
+
+boston_nn <- train(
+    medv ~ lstat,
+    data=Boston,
+    method='knn', 
+    tuneGrid = data.frame(k=seq(1, 50, 2)) # I am checking 1 to 50 in steps of 2
+)
+
+# which row of the results df is the best on RMSE?
+best_row = which.min(boston_nn$results$RMSE)
+
+ggplot(boston_nn$results, aes(x=k, y=RMSE)) + 
+    geom_line() + 
+    geom_point(x=boston_nn$results$k[best_row], y=boston_nn$results$RMSE[best_row], color='red')
+```
+
+```{r}
+# note that the plot curves upwards, suggesting that we've found a real minimum after 
+# which the out of sample error will start to increase. You can check this yourself by 
+# increasing the maximum k beyond 50!
+```
+
+## 2b
+
+```{r}
+# make a new dataframe with the values you want to predict
+scenario <- data.frame(lstat=c(5, 10, 15))
+
+# and predict those values!
+scenario |> mutate(
+    pred_nn = predict(boston_nn, newdata=scenario)
+) |> knitr::kable()
+```
+
+## 2c
+
+```{r}
+# fit an LM now
+boston_lm = train(medv ~ lstat, data=Boston, method='lm')
+
+# and do the same thing
+scenario |> mutate(
+    pred_nn = predict(boston_nn, newdata=scenario),
+    pred_lm = predict(boston_lm, newdata=scenario),
+) |> knitr::kable()
+```
+
+
+## Common pitfalls with KNN
+
+One common issue with KNN learners is that they are *interpolators*. That is, a KNN learner will never predict outside of the range of $y$ that has been observed. Many common models, such as random forests and decision trees which we will consider later in this unit, are also interpolators. These algorithms are often very good at achieving high accuracy when predicting *inside of* the range of the observed $y$ variable, but are generally unreliable for forecasting. 
+
+Another common issue with KNN learners is that they do not handle categorical predictors well. A KNN algorithm can easily make *predictions* about categorical variables, but they have a hard time dealing with categorical $x$ variables. This is because of the issue of *ties*. Imagine you're predicting the price of a car based on its color. You have five "red" cars, seven "green" cars, and ten "blue" cars, all worth different prices. When $k=3$ and you're predicting about a "blue" car, which of the ten training points do you pick? All of them? Then, it's not a "knn" learner! If you want to be strict about $k$, you then must pick $k$ values *at random* when predicting a value for a "blue" car when $k$ is smaller than the number of observations within a group. Second, imagine if $k=8$ and you're predicting the value of a green car. Is "red" closer to "green" than "black"? If you can't decide, then do you pick at random from the "red" cars? or the "black" cars? or, do you pick randomly from all of the red and black cars? At its core, KNN learners work best when *distance is a natural, simple-to-interpret function on the $x$ variables*. For categorical $x$ or $x$ with many ties, this is often not the case, and this will make predictions based on a KNN learner less useful.
+
+Another common issue with KNN is that they are *scale sensitive*. This means that the $k$ value that is discovered depends on the magnitude of $x$. This is *not* a problem when there is only one predictor, but as soon as there is more than one predictor, this can become a problem. 
+
+:::{.callout-tip}
+## Comprehension check
+1. Fit a KNN model to the `Boston` data from ISL, predicting `medv` using `lstat` and `age`. 
+    a. What is the best value of $k$? *eleven*
+    b. Now, force the variables to be re-scaled to have a mean of zero and a variance of one using the `preProcess='scale'` option for `caret::train()`. What is the best value of $k$ there? Is the error higher or lower? *thirteen. Error is lower in the scaled model!*
+    c. What is the standard deviation of the `lstat` feature? How about the `age` feature? *SD of lstat is about 7.14, while age is up at 28.14*
+    d. If a test point is 1 unit away from a training point in model (a), what's the largest difference in `age` between the test point and the training point? How about `lstat`? *if a test point is 1 unit of distance away, it’s either one year older (or younger) or it’s one percentage point different on the lower socioeconomic status population in the area, which is what lstat measures.*
+    e. If a test point is 1 unit away from a training point in model (b), what's the largest difference in `age` between the test point and training point? How about `lstat`? *If a test point is 1 unit away from a training point in model (b), what’s the largest difference in age between the test point and training point? How about lstat? Here, now that we’ve standardized the input data, a unit difference in the distance means the house is twenty eight years apart, or it’s seven percentage points different on the lower socioeconomic status population percentage.*
+    f. Given what you learned about (d) and (e), is the model from part (a) more sensitive to `age` or `lstat`? How about the model in part (b)? *the model from part a will be more sensitive to changes in age because the variability in age changes more slowly as a function of distance. Put another way, observations are more likely to be close on their lstat feature because its variance/standard deviation is so much smaller than the age feature. This means that an overall distance between two observations in the first model has a small amount “caused” by differences in lstat, but much more “caused” by differences in age. So, two houses that are “similar” will tend to be quite similar in age, but less similar on the lstat feature. In model b, a unit of distance corresponds to a standard deviation change in either input variable, so model b will listen to both of them equally.*
+:::
+
+## 1a
+
+```{r}
+boston_nn2 <- train(
+    medv ~ lstat + age, 
+    data=Boston,
+    method='knn',
+    tuneGrid=data.frame(k=seq(1, 50, 2))
+)
+```
+
+## 1b
+
+```{r}
+boston_nn2_scaled <- train(
+    medv ~ lstat + age, 
+    data=Boston,
+    method='knn',
+    tuneGrid=data.frame(k=seq(1, 50, 2)),
+    preProcess='scale'
+)
+```
+
